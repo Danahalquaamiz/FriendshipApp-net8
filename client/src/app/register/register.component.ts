@@ -2,6 +2,7 @@ import { Component, inject, input, Input, Output, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AccountService } from '../_services/account.service';
 import { R3SelectorScopeMode } from '@angular/compiler';
+import { ToastrService } from 'ngx-toastr';
 
 @Component({
   selector: 'app-register',
@@ -11,6 +12,7 @@ import { R3SelectorScopeMode } from '@angular/compiler';
   styleUrl: './register.component.css'
 })
 export class RegisterComponent {
+  private toastr = inject(ToastrService)
   private accountService = inject(AccountService);
   cancelRegister = output<boolean>();
   model: any ={}
@@ -21,7 +23,7 @@ export class RegisterComponent {
         console.log(response);
         this.cancel();
       },
-      error: error => console.log(error)
+      error: error => this.toastr.error(error.error)
     })
    }
 
