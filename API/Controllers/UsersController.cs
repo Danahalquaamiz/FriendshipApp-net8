@@ -56,11 +56,14 @@ IPhotoService photoService) : BaseApiController
 
         var result = await photoService.AddPhotoAsync(file);
         if (result.Error != null) return BadRequest(result.Error.Message);
+
         var photo = new Photo
         {
             Url = result.SecureUrl.AbsoluteUri,
             PublicId = result.PublicId
         };
+
+        if (user.Photos.Count == 0 ) photo.IsMain = true;
 
         user.Photos.Add(photo);
         if (await userRepository.SaveAllAsync())
