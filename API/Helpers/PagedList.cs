@@ -20,18 +20,16 @@ public class PagedList<T> : List<T>
     public int PageSize { get; set; }
     public int TotalCount { get; set; }
 
-    public static async Task<PagedList<T>> CreateAsync(IQueryable<T> source, int pageNumber, int pageSize)
+    public static async Task<PagedList<T>> CreateAsync(IQueryable<T> source, int pageNumber, int pageSize) // <T> to make it generic to be used by any entites. //and we can swap it for any other types.
     {
-        var count = await source.CountAsync();
-        var items = await source.Skip((pageNumber - 1 ) * pageSize).Take(pageSize).ToListAsync();
-        return new PagedList<T>(items, count, pageNumber, pageSize);
+        var count = await source.CountAsync(); // to check how many items we have in the database beofre pagination.
+        var items = await source
+                        .Skip((pageNumber - 1 ) * pageSize)
+                        .Take(pageSize)
+                        .ToListAsync();
+        return new PagedList<T>(items, count, pageNumber, pageSize); //Creates and returns an instance of PagedList<T>
 
 
     }
 
 }
-
-
-// <T> to make it generic to be used by any entites. 
-//and we can swap it for any other types.
-// var count = await source.CountAsync(); to check how many items we have in the database beofre pagination.
