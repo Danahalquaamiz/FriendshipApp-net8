@@ -4,6 +4,9 @@ import { HttpClient } from '@angular/common/http';
 import { PaginatedResult } from '../_models/pagination';
 import { Message } from '../_models/messages';
 import { setPaginatedResponse, setPaginationHeaders } from './paginationHelpers';
+import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
+import { User } from '../_models/user';
+import { Group } from '../_models/group';
 
 // The MessageService is responsible for interacting with the backend API to fetch the messages and manage the paginated results.
 
@@ -13,7 +16,48 @@ import { setPaginatedResponse, setPaginationHeaders } from './paginationHelpers'
 export class MessageService {
   baseUrl = environment.apiUrl;
   private http = inject(HttpClient);
+  hubUrl = environment.hubsUrl;
+  hubConnection?: HubConnection;
   paginatedResult = signal<PaginatedResult<Message[]> | null>(null); //paginatedResult: This is a reactive signal (signal) that holds the paginated results of the messages. It stores the messages along with pagination information (e.g., total items, current page, etc.).
+  messageThread = signal<Message[]>([]);
+
+  createHubConnection(user: User, otherUsername: string) {
+    this.hubConnection = new HubConnectionBuilder()
+      .withUrl(this.hubUrl + 'message?user=' + otherUsername, {
+        accessTokenFactory: () => user.token
+      })
+      .withAutomaticReconnect()
+      .build();
+
+    this.hubConnection.start().catch(error => console.log(error));
+
+    this.hubConnection.on('ReceiveMessageThread', messages => {
+      this.messageThread.set(messages)
+    });
+
+    this.hubConnection.on('NewMessage', message => {
+      this.messageThread.update(messages => [...messages, message])
+    });
+
+    this.hubConnection.on('UpdatedGroup', (group: Group) => {
+      if (group.connections.some(x => x.username === otherUsername)) {
+        this.messageThread.update(messages => {
+          messages.forEach(message => {
+            if (!message.dateRead) {
+              message.dateRead = new Date(Date.now());
+            }
+          })
+          return messages;
+        })
+      }
+    })
+  }
+
+  stopHubConnection() {
+    if (this.hubConnection?.state === HubConnectionState.Connected) {
+      this.hubConnection.stop().catch(error => console.log(error));
+    }
+  }
 
   // This method is used to make an HTTP GET request to the API endpoint 'messages' to fetch the messages.
   getMessages(pageNumber: number, pageSize: number, container: string) {
@@ -30,11 +74,11 @@ export class MessageService {
     return this.http.get<Message[]>(this.baseUrl + 'messages/thread/' + username);
   }
 
-  sendMessgae(username: string, content: string){
-    return this.http.post<Message>(this.baseUrl + 'messages' , {recipientUsername: username, content})
+  async sendMessage(username: string, content: string) {
+    return this.hubConnection?.invoke('SendMessage', {recipientUsername: username, content})
   }
 
-  deleteMessage(id: number){
+  deleteMessage(id: number) {
     return this.http.delete(this.baseUrl + 'messages/' + id);
   }
 }
