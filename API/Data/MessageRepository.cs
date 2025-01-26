@@ -73,32 +73,25 @@ public class MessageRepository(DataContext context, IMapper mapper) : IMessageRe
 
     public async Task<IEnumerable<MessageDto>> GetMessageThread(string currentUsername, string recipientUsername) // Retrieves all messages exchanged between the logged-in user and a specific recipient.
     {
-        var messages = await context.Messages
+        var query = context.Messages
             .Where(x =>
             x.RecipientUsername == currentUsername && x.RecipientDeleted == false && x.SenderUsername == recipientUsername ||
             x.SenderUsername == currentUsername && x.SenderDeleted == false && x.RecipientUsername == recipientUsername)
             .OrderBy(x => x.MessageSent)
-            .ProjectTo<MessageDto>(mapper.ConfigurationProvider)
-            .ToListAsync();
+            .AsQueryable();
 
-        var unreadMessages = messages.Where(x => x.DateRead == null && x.RecipientUsername == currentUsername).ToList(); // Marks unread messages as read and saves changes.
+        var unreadMessages = query.Where(x => x.DateRead == null && x.RecipientUsername == currentUsername).ToList(); // Marks unread messages as read and saves changes.
 
         // Marks unread messages as read and saves changes.
         if (unreadMessages.Count != 0)
         {
             unreadMessages.ForEach(x => x.DateRead = DateTime.UtcNow);
-            await context.SaveChangesAsync();
         }
-        return messages;
+        return await query.ProjectTo<MessageDto>(mapper.ConfigurationProvider).ToListAsync();
     }
 
     public void RemoveConnection(Connection connection)
     {
         context.Connections.Remove(connection);
-    }
-
-    public async Task<bool> SaveAllAsync() // Saves changes to the database and returns true if successful.
-    {
-        return await context.SaveChangesAsync() > 0;
     }
 }

@@ -8,9 +8,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers;
 
-// The LikesController class defines API endpoints for managing likes. It relies on ILikesRepository for data operations 
+// The LikesController class defines API endpoints for managing likes. It relies on IunitOfWork.LikesRepository for data operations 
 //and ensures the correct handling of business rules.
-public class LikesController(ILikesRepository likesRepository): BaseApiController
+public class LikesController(IUnitOfWork unitOfWork): BaseApiController
 {
     [HttpPost("{targetUserId:int}")]
     public async Task<ActionResult> ToggleLike(int targetUserId) //Toggles the "like" state between the current user (sourceUserId) and the target user (targetUserId).
@@ -24,7 +24,7 @@ public class LikesController(ILikesRepository likesRepository): BaseApiControlle
         var sourceUserId = User.GetUserId();
         if (sourceUserId == targetUserId) return BadRequest("You cannot like yourself");
 
-        var existingLike = await likesRepository.GetUserLike(sourceUserId,targetUserId); 
+        var existingLike = await unitOfWork.LikesRepository.GetUserLike(sourceUserId,targetUserId); 
 
         if(existingLike == null)
         {
@@ -33,27 +33,27 @@ public class LikesController(ILikesRepository likesRepository): BaseApiControlle
                 SourceUserId = sourceUserId, 
                 TargetUserId = targetUserId
             };
-            likesRepository.AddLike(like);
+            unitOfWork.LikesRepository.AddLike(like);
         }
         else
         {
-            likesRepository.DeleteLike(existingLike);
+            unitOfWork.LikesRepository.DeleteLike(existingLike);
         }
-        if (await likesRepository.SaveChanges()) return Ok();
+        if (await unitOfWork.Complete()) return Ok();
         return BadRequest("Failed to update like");
     }
 
     [HttpGet("list")]
     public async Task<ActionResult<IEnumerable<int>>> GetCurrentUserLikeIds() // Returns a list of IDs of users the current user has liked.
     {
-        return Ok(await likesRepository.GetCurrentUserLikeIds(User.GetUserId()));
+        return Ok(await unitOfWork.LikesRepository.GetCurrentUserLikeIds(User.GetUserId()));
     }
 
     [HttpGet] // Retrieves users based on the predicate ("liked" or "likedBy") and returns a list of MemberDto objects.
     public async Task<ActionResult<IEnumerable<MemberDto>>> GetUserLikes([FromQuery]LikesParams likesParams)
     {
         likesParams.UserId = User.GetUserId();
-        var users = await likesRepository.GetUserLikes(likesParams);
+        var users = await unitOfWork.LikesRepository.GetUserLikes(likesParams);
 
 
         Response.AddPaginationHeader(users);

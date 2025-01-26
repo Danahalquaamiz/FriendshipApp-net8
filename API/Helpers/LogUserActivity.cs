@@ -17,13 +17,13 @@ public class LogUserActivity : IAsyncActionFilter // IAsyncActionFilter to defin
 
         var userId = resultContext.HttpContext.User.GetUserId(); //Retrieve the Username
 
-        var repo = resultContext.HttpContext.RequestServices.GetRequiredService<IUserRepository>(); //Access the User Repository:
+        var unitOfWork = resultContext.HttpContext.RequestServices.GetRequiredService<IUnitOfWork>(); //Access the User Repository:
 
-        var user = await repo.GetUserByIdAsync(userId); //Fetch the User:
+        var user = await unitOfWork.UserRepository.GetUserByIdAsync(userId); //Fetch the User:
         if(user == null) return;
 
         //Update the LastActive Timestamp:
         user.LastActive = DateTime.UtcNow;
-        await repo.SaveAllAsync();
+        await unitOfWork.Complete();
     }
 }

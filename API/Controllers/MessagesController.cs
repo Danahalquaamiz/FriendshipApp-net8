@@ -14,7 +14,7 @@ namespace API.Controllers;
 
 // Exposes endpoints to manage messages.
 [Authorize]
-public class MessagesController(IMessageRepository messageRepository, IUserRepository userRepository, IMapper mapper) : BaseApiController
+public class MessagesController(IUnitOfWork unitOfWork, IMapper mapper) : BaseApiController
 {
     [HttpPost]
     public async Task<ActionResult<MessageDto>> CreateMessage(CreateMessageDto createMessageDto) //Purpose: Allows a user to send a message to another user.
@@ -24,9 +24,9 @@ public class MessagesController(IMessageRepository messageRepository, IUserRepos
         if (username == createMessageDto.RecipientUsername.ToLower())
             return BadRequest("You cannot message yourself!"); 
 
-        // Retrieves both the sender and recipient from the userRepository.
-        var sender = await userRepository.GetUserByUsernameAsync(username);
-        var recipient = await userRepository.GetUserByUsernameAsync(createMessageDto.RecipientUsername);
+        // Retrieves both the sender and recipient from the unitOfWork.UserRepository.
+        var sender = await unitOfWork.UserRepository.GetUserByUsernameAsync(username);
+        var recipient = await unitOfWork.UserRepository.GetUserByUsernameAsync(createMessageDto.RecipientUsername);
 
         if (recipient == null || sender == null || sender.UserName == null || recipient.UserName == null) 
             return BadRequest("Cannot send message at this time");
@@ -40,11 +40,11 @@ public class MessagesController(IMessageRepository messageRepository, IUserRepos
             RecipientUsername =  recipient.UserName,
             Content = createMessageDto.Content
         };
-        // Adds the message to the database via messageRepository.AddMessage(message).
-        messageRepository.AddMessage(message);
+        // Adds the message to the database via unitOfWork.MessageRepository.AddMessage(message).
+        unitOfWork.MessageRepository.AddMessage(message);
 
-        // Saves changes (messageRepository.SaveAllAsync()) , Returns the created message as a MessageDto on success or an error message on failure.
-        if (await messageRepository.SaveAllAsync()) return Ok(mapper.Map<MessageDto>(message));
+        // Saves changes (unitOfWork.MessageRepository.SaveAllAsync()) , Returns the created message as a MessageDto on success or an error message on failure.
+        if (await unitOfWork.Complete()) return Ok(mapper.Map<MessageDto>(message));
             return BadRequest("Failed to save message");
     }
 
@@ -53,7 +53,7 @@ public class MessagesController(IMessageRepository messageRepository, IUserRepos
     public async Task<ActionResult<IEnumerable<MessageDto>>> GetMessagesForUser([FromQuery]MessageParams messageParams) //Retrieves paginated messages for the logged-in user.
     {
         messageParams.Username = User.GetUsername(); // Gets the logged-in user's username and assigns it to messageParams.Username.
-        var messages = await messageRepository.GetMessagesForUser(messageParams); //Uses messageRepository.GetMessagesForUser(messageParams) to retrieve messages, filtering them based on the Container property (e.g., Inbox, Outbox, Unread).
+        var messages = await unitOfWork.MessageRepository.GetMessagesForUser(messageParams); //Uses unitOfWork.MessageRepository.GetMessagesForUser(messageParams) to retrieve messages, filtering them based on the Container property (e.g., Inbox, Outbox, Unread).
         Response.AddPaginationHeader(messages); //Adds a pagination header to the response
         return messages; //Returns the paginated list of messages as MessageDto.
     }
@@ -64,7 +64,7 @@ public class MessagesController(IMessageRepository messageRepository, IUserRepos
     {
         var currentUsername = User.GetUsername(); //Gets the logged-in user's username
 
-        return Ok(await messageRepository.GetMessageThread(currentUsername, username)); //Uses messageRepository.GetMessageThread(currentUsername, username) to fetch all messages between the two users.
+        return Ok(await unitOfWork.MessageRepository.GetMessageThread(currentUsername, username)); //Uses unitOfWork.MessageRepository.GetMessageThread(currentUsername, username) to fetch all messages between the two users.
     }
 
     [HttpDelete("{id}")]
@@ -72,7 +72,7 @@ public class MessagesController(IMessageRepository messageRepository, IUserRepos
     {
         var username = User.GetUsername();
 
-        var message = await messageRepository.GetMessage(id); 
+        var message = await unitOfWork.MessageRepository.GetMessage(id); 
 
         if(message == null) return BadRequest("Cannot delete this message");
 
@@ -84,10 +84,10 @@ public class MessagesController(IMessageRepository messageRepository, IUserRepos
         if(message.SenderDeleted == true && message.RecipientDeleted == true)
 
         if (message is {SenderDeleted: true, RecipientDeleted: true}) {
-            messageRepository.DeleteMessage(message);
+            unitOfWork.MessageRepository.DeleteMessage(message);
         }
 
-        if(await messageRepository.SaveAllAsync()) return Ok();
+        if(await unitOfWork.Complete()) return Ok();
 
         return BadRequest("Problem deleting the message");
     }

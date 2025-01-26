@@ -12,7 +12,4 @@ public interface ILikesRepository
     Task<IEnumerable<int>> GetCurrentUserLikeIds(int currentUserId); //Gets the IDs of users the current user has liked.
     void DeleteLike(UserLike like); //Adds a like to the database.
     void AddLike(UserLike like); //Removes a like from the database.
-    Task<bool> SaveChanges(); //Saves changes to the database.
-    
-    
 }
