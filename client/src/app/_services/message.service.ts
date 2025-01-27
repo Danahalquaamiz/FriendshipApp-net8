@@ -7,6 +7,7 @@ import { setPaginatedResponse, setPaginationHeaders } from './paginationHelpers'
 import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
 import { User } from '../_models/user';
 import { Group } from '../_models/group';
+import { BusyService } from './busy.service';
 
 // The MessageService is responsible for interacting with the backend API to fetch the messages and manage the paginated results.
 
@@ -16,12 +17,14 @@ import { Group } from '../_models/group';
 export class MessageService {
   baseUrl = environment.apiUrl;
   private http = inject(HttpClient);
+  private busyService = inject(BusyService);
   hubUrl = environment.hubsUrl;
   hubConnection?: HubConnection;
   paginatedResult = signal<PaginatedResult<Message[]> | null>(null); //paginatedResult: This is a reactive signal (signal) that holds the paginated results of the messages. It stores the messages along with pagination information (e.g., total items, current page, etc.).
   messageThread = signal<Message[]>([]);
 
   createHubConnection(user: User, otherUsername: string) {
+    this.busyService.busy();
     this.hubConnection = new HubConnectionBuilder()
       .withUrl(this.hubUrl + 'message?user=' + otherUsername, {
         accessTokenFactory: () => user.token
@@ -29,7 +32,9 @@ export class MessageService {
       .withAutomaticReconnect()
       .build();
 
-    this.hubConnection.start().catch(error => console.log(error));
+    this.hubConnection.start()
+      .catch(error => console.log(error))
+      .finally(() => this.busyService.idle);
 
     this.hubConnection.on('ReceiveMessageThread', messages => {
       this.messageThread.set(messages)
@@ -75,7 +80,7 @@ export class MessageService {
   }
 
   async sendMessage(username: string, content: string) {
-    return this.hubConnection?.invoke('SendMessage', {recipientUsername: username, content})
+    return this.hubConnection?.invoke('SendMessage', { recipientUsername: username, content })
   }
 
   deleteMessage(id: number) {
