@@ -6,15 +6,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace API.Data;
 
-public class DataContext(DbContextOptions options) : IdentityDbContext<AppUser, 
-AppRole, int, IdentityUserClaim<int>,AppUserRole, IdentityUserLogin<int>, 
-IdentityRoleClaim<int>, IdentityUserToken<int> >(options)
+public class DataContext(DbContextOptions options) : IdentityDbContext<AppUser,
+AppRole, int, IdentityUserClaim<int>, AppUserRole, IdentityUserLogin<int>,
+IdentityRoleClaim<int>, IdentityUserToken<int>>(options)
 {
 
     public DbSet<UserLike> Likes { get; set; }
     public DbSet<Message> Messages { get; set; }
-    public DbSet<Group> Groups { get; set; }    
-    public DbSet<Connection> Connections { get; set; }  
+    public DbSet<Group> Groups { get; set; }
+    public DbSet<Connection> Connections { get; set; }
+    public DbSet<Photo> Photos { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -33,7 +34,7 @@ IdentityRoleClaim<int>, IdentityUserToken<int> >(options)
             .IsRequired();
 
         builder.Entity<UserLike>()
-        .HasKey(k => new {k.SourceUserId, k.TargetUserId});
+        .HasKey(k => new { k.SourceUserId, k.TargetUserId });
 
         builder.Entity<UserLike>()
             .HasOne(s => s.SourceUser)
@@ -57,6 +58,12 @@ IdentityRoleClaim<int>, IdentityUserToken<int> >(options)
             .WithMany(x => x.MessageSent)
             .OnDelete(DeleteBehavior.Restrict);
 
-        
+        builder.Entity<Message>()
+            .HasOne(u => u.Sender)
+            .WithMany(m => m.MessageSent)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<Photo>().HasQueryFilter(p => p.IsApproved);
+
     }
 }
